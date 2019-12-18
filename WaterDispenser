@@ -1,0 +1,195 @@
+// defines pins numbers
+const int stepPin = 13; //The pin that makes the motor move.
+const int dirPin = 12; //In charge of what way the motor moves around
+const int liquidPin = 22; //IR checks for water in cup
+const int btnPin[] ={33,32,31,30}; //Input pins for the buttons.
+const int drinkPin[] ={52,50,53,51}; //Outputs to turn on drink motor.
+const int lightPin = 9;
+const int CupCheckPin = A3; //Check for actual cup
+
+const int DelayRotation = 1500; //variable for the timing of the Stepper Motor - higher = slower rotation
+int DrinkChoice = 0; //Variable that chooses pin.
+
+bool LiquidMonitor();
+int buttonPress();
+void Rotate(int RotationDistance);
+void TurnLightOn();
+void TurnLightOff();
+bool CupCheck();
+void FinalRotation();
+void PourDrink(int Drink, int Part);
+void Calibrate();
+
+
+ 
+void setup() {
+  // Sets the pins as INPUTs and OUTPUTs
+  pinMode(CupCheckPin,INPUT);
+  pinMode(stepPin,OUTPUT); 
+  pinMode(dirPin,OUTPUT);
+  pinMode(lightPin,OUTPUT);
+  for (int thisPin = 0; thisPin < 4; thisPin++) {
+    pinMode(btnPin[thisPin], INPUT_PULLUP);
+  }
+  for (int thisPin = 0; thisPin < 4; thisPin++) {
+    pinMode(drinkPin[thisPin], OUTPUT);
+    digitalWrite(drinkPin[thisPin],LOW);
+  }
+  pinMode (liquidPin, INPUT); //Sensor output
+  digitalWrite(dirPin,HIGH); // Sets the direction of the motor
+  
+  TurnLightOff();  
+  FinalRotation();
+  TurnLightOn();
+}
+
+
+void loop() { //Main program
+  
+ TurnLightOn(); //Turns on the idle lamp
+ int DrinkChoice;
+ 
+ DrinkChoice = buttonPress(); //Checks for the button pressed, and sets the chosen drink
+ TurnLightOff(); //Turn off the idle lamp
+ FinalRotation();
+ 
+ Rotate(255); //Rotates the cup under the first liquid-extruder
+ 
+ if(LiquidMonitor()==false){ //Checks for empty cup
+  PourDrink(DrinkChoice,1); //Pours the "Big Liquid"
+  Rotate(275); //Rotates to the second liquid-extruder
+  PourDrink(DrinkChoice,2); //Pours the "Small Liquid"
+  FinalRotation(); //Rotates the cup back to the starting position.
+ }
+ else{ //
+  FinalRotation(); //Rotates the cup back to the starting position.
+ }
+}
+
+
+void Rotate(int RotationDistance) { //The program responsible for actually rotating the rooundtable
+  for(int x = 0; x < RotationDistance; x++) { //Steps the Stepper Motor the number of steps dertmained by the RotationDistance integer.    
+    digitalWrite(stepPin,HIGH);
+    delayMicroseconds(DelayRotation);
+    digitalWrite(stepPin,LOW);
+    delayMicroseconds(DelayRotation);     
+  }
+}
+
+
+bool LiquidMonitor() { //Program responsible for looking for existing liquid in the cup
+  int value = 0;
+  for(int i =0; i<10; i++){ //Makes 10 readings, and adds them together.
+    value=value+digitalRead(liquidPin);
+    delay(100);
+  }
+  
+  if(value>=8){ //determines wether there is liquid in the cup or not.
+    return true;
+  }
+  else{
+    return false;
+  }
+}
+
+
+int buttonPress(){ //looks for the pressed button
+  int var = 0;
+    while(var==0){ //idle state, a constant loop, that the program will be running untill a button is pressed.
+      if(CupCheck()== true){ //buttons will only be registred while a cup is present.
+        for (int thisPin = 0; thisPin < 4; thisPin++) {
+          if(digitalRead(btnPin[thisPin])==LOW){
+            var=thisPin+1;
+            
+          }
+        } 
+      }
+    }
+      
+  if(var!=0){ //returns the button selected if any button is pressed.
+    return var;
+  }
+}
+
+
+void PourDrink(int Drink,int Part){//Program for determining what drink to pour, dependent on drink selected from buttons.
+  int LiquidBig = 0;
+  int LiquidSmall = 0;
+  
+  switch(Drink){ //Sets LiquidBig and LiquidSmall depending on the Drink chosen from the buttons.
+    case 1:
+      LiquidBig=0;
+      LiquidSmall=2;
+      break;
+      
+    case 2:
+      LiquidBig=0;
+      LiquidSmall=3;
+      break;
+      
+    case 3:
+      LiquidBig=1;
+      LiquidSmall=2;
+      break;
+      
+    case 4:
+      LiquidBig=1;
+      LiquidSmall=3;
+      break;
+  }
+  switch(Part){ //Chooses what extruder to turn on, based on current position
+    case 1:
+      digitalWrite(drinkPin[LiquidBig],HIGH);
+      delay(8000);
+      digitalWrite(drinkPin[LiquidBig],LOW);
+      break;
+    case 2:
+      digitalWrite(drinkPin[LiquidSmall],HIGH);
+      delay(30000);
+      digitalWrite(drinkPin[LiquidSmall],LOW);
+      break;
+  }
+  delay(2000);
+}
+
+
+void TurnLightOn(){ //Turns on the light
+  digitalWrite(lightPin,HIGH);
+}
+
+void TurnLightOff(){ //Turns off the light
+  digitalWrite(lightPin,LOW);
+}
+
+bool CupCheck(){ //Checks for cup in cupholder
+  int Distance = 0;
+  for(int i=0;i<10;i++){
+    Distance = Distance+analogRead(CupCheckPin);
+  }
+  Distance=Distance/10;
+  
+  if(Distance<380 || Distance>440){
+    return false;
+  }
+  else{
+    return true;   
+  }
+}
+
+void FinalRotation(){ //Rotates the RoundTable untill the cup is in front of the CupCheck module.
+  while(CupCheck() == false){//As long as the cup isn't in front of CupCheck module, it keeps rotating.
+    Rotate(1);
+  }
+  Calibrate();
+  
+}
+
+void Calibrate(){
+  while(CupCheck() == true){
+    Rotate(1);
+  }
+  delay(500);
+  digitalWrite(dirPin,LOW); // Sets the direction of the motor
+    Rotate(25);
+  digitalWrite(dirPin,HIGH);
+}
